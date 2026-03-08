@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart } from 'lightweight-charts';
+import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
 
 export function TradingChart({ data, patterns = {}, width = 800, height = 400 }) {
   const chartContainerRef = useRef();
@@ -10,12 +10,12 @@ export function TradingChart({ data, patterns = {}, width = 800, height = 400 })
     if (!chartContainerRef.current) return;
 
     try {
-      // Create chart
+      // Create chart with locale fix
       const chart = createChart(chartContainerRef.current, {
         width,
         height,
         layout: {
-          background: { color: '#1a1a1a' },
+          background: { type: ColorType.Solid, color: '#1a1a1a' },
           textColor: '#d1d4dc',
         },
         grid: {
@@ -33,10 +33,13 @@ export function TradingChart({ data, patterns = {}, width = 800, height = 400 })
           timeVisible: true,
           secondsVisible: false,
         },
+        localization: {
+          locale: 'en-US',
+        },
       });
 
-      // Create candlestick series
-      const candleSeries = chart.addCandlestickSeries({
+      // Create candlestick series using v5 API
+      const candleSeries = chart.addSeries(CandlestickSeries, {
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderVisible: false,
@@ -66,7 +69,7 @@ export function TradingChart({ data, patterns = {}, width = 800, height = 400 })
       const chartData = data.map(candle => {
         const timestamp = candle.timestamp;
         let time;
-        
+
         if (typeof timestamp === 'string') {
           time = new Date(timestamp).getTime() / 1000;
         } else if (timestamp instanceof Date) {
@@ -88,6 +91,11 @@ export function TradingChart({ data, patterns = {}, width = 800, height = 400 })
       const sortedData = chartData.sort((a, b) => a.time - b.time);
       candleSeriesRef.current.setData(sortedData);
 
+      // Fit content to visible range
+      if (chartRef.current) {
+        chartRef.current.timeScale().fitContent();
+      }
+
       // Add pattern markers
       if (patterns && patterns.liquidity_sweeps && patterns.liquidity_sweeps.length > 0) {
         const markers = patterns.liquidity_sweeps.map(sweep => {
@@ -103,7 +111,7 @@ export function TradingChart({ data, patterns = {}, width = 800, height = 400 })
             text: 'Sweep',
           };
         });
-        
+
         const sortedMarkers = markers.sort((a, b) => a.time - b.time);
         candleSeriesRef.current.setMarkers(sortedMarkers);
       } else {

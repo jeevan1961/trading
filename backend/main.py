@@ -7,9 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import connect_to_mongo, close_mongo_connection
 from services.liquidity_radar import run_liquidity_radar
+from api.auth import router as auth_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 radar_results = []
 radar_task = None
@@ -17,21 +20,17 @@ radar_task = None
 
 async def radar_loop():
     """
-    Continuously run liquidity radar.
+    Continuously scan market for trading setups.
     """
 
     global radar_results
 
     while True:
-
         try:
-
             results = await run_liquidity_radar()
-
             radar_results = results
 
         except Exception as e:
-
             logger.error(f"Radar loop error: {e}")
 
         await asyncio.sleep(5)
@@ -63,6 +62,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,6 +72,9 @@ app.add_middleware(
 )
 
 
+app.include_router(auth_router, prefix="/auth")
+
+
 @app.get("/")
 async def root():
     return {"status": "Trading backend running"}
@@ -79,7 +82,4 @@ async def root():
 
 @app.get("/api/radar")
 async def get_radar():
-    """
-    Return latest radar results.
-    """
     return radar_results

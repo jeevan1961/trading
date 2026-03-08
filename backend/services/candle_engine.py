@@ -17,7 +17,7 @@ def normalize_minute(ts: datetime):
 
 async def process_tick_to_candle(tick: dict):
     """
-    Convert tick data to OHLC candle.
+    Convert tick data into OHLC candles.
     """
 
     try:
@@ -25,14 +25,19 @@ async def process_tick_to_candle(tick: dict):
         instrument = tick.get("instrument_key")
         price = tick.get("ltp")
 
+        volume = tick.get("volume") or 0
+
         if not instrument or price is None:
             return
 
-        # Use tick timestamp if available
+        # Prefer tick timestamp if available
         ts = tick.get("timestamp")
 
         if ts:
-            timestamp = datetime.fromisoformat(ts)
+            try:
+                timestamp = datetime.fromisoformat(ts)
+            except Exception:
+                timestamp = datetime.utcnow()
         else:
             timestamp = datetime.utcnow()
 
@@ -50,7 +55,7 @@ async def process_tick_to_candle(tick: dict):
                 "high": price,
                 "low": price,
                 "close": price,
-                "volume": tick.get("volume", 0)
+                "volume": volume
             }
 
         else:
@@ -60,8 +65,7 @@ async def process_tick_to_candle(tick: dict):
             candle["high"] = max(candle["high"], price)
             candle["low"] = min(candle["low"], price)
             candle["close"] = price
-
-            candle["volume"] += tick.get("volume", 0)
+            candle["volume"] += volume
 
         await close_old_candles(minute)
 
@@ -104,7 +108,7 @@ async def close_old_candles(current_minute):
 
 def get_latest_candle(instrument_key):
     """
-    Return latest active candle.
+    Return latest active candle for instrument.
     """
 
     for candle in current_candles.values():

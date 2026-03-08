@@ -2,7 +2,7 @@ let socket = null;
 
 export function connectWebSocket(onMessage) {
 
-  socket = new WebSocket("ws://localhost:8000/stream");
+  socket = new WebSocket(import.meta.env.VITE_WS_URL);
 
   socket.onopen = () => {
     console.log("WebSocket connected");
@@ -10,26 +10,12 @@ export function connectWebSocket(onMessage) {
 
   socket.onmessage = (event) => {
 
-    try {
+    const data = JSON.parse(event.data);
 
-      const data = JSON.parse(event.data);
-
-      if (onMessage) {
-        onMessage(data);
-      }
-
-    } catch (err) {
-      console.error("WebSocket parse error:", err);
+    if (onMessage) {
+      onMessage(data);
     }
 
-  };
-
-  socket.onerror = (err) => {
-    console.error("WebSocket error:", err);
-  };
-
-  socket.onclose = () => {
-    console.log("WebSocket closed");
   };
 
 }

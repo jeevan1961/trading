@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MarketProvider } from './context/MarketContext';
 import { Dashboard } from './pages/Dashboard';
 import { LoginPage } from './pages/LoginPage';
+import { AuthCallback } from './pages/AuthCallback';
 import '@/App.css';
 
 function App() {
@@ -19,7 +20,6 @@ function App() {
   }, []);
 
   const handleLogin = (token) => {
-    // Added this line so the token actually persists across page reloads!
     if (token) {
       localStorage.setItem('token', token);
     }
@@ -52,6 +52,10 @@ function App() {
                 <LoginPage onLogin={handleLogin} />
               )
             }
+          />
+          <Route
+            path="/auth/callback"
+            element={<AuthCallback onLogin={handleLogin} />}
           />
           <Route
             path="/"

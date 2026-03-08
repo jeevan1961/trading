@@ -1,0 +1,125 @@
+/* Global layout */
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f1116;
+  color: #ffffff;
+}
+
+/* App container */
+
+.app-container {
+  padding: 10px;
+}
+
+/* Navbar */
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #161a23;
+  padding: 10px 15px;
+  border-radius: 6px;
+}
+
+.navbar-title {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.navbar-status {
+  font-size: 14px;
+}
+
+.status.connected {
+  color: #4caf50;
+}
+
+.status.offline {
+  color: #ff5252;
+}
+
+.status.checking {
+  color: #ffa500;
+}
+
+/* Dashboard layout */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 70% 30%;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Chart panel */
+
+.chart-section {
+  background: #161a23;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+/* Radar panel */
+
+.radar-section {
+  background: #161a23;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+/* Scanner section */
+
+.scanner-section {
+  background: #161a23;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+}
+
+/* Radar items */
+
+.radar-item {
+  background: #1b202b;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.radar-symbol {
+  font-weight: bold;
+}
+
+.radar-score {
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.radar-signals {
+  font-size: 13px;
+  color: #c1c5d0;
+}
+
+/* Scanner table */
+
+.scanner-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.scanner-table th {
+  text-align: left;
+  padding: 8px;
+  background: #1b202b;
+}
+
+.scanner-table td {
+  padding: 8px;
+  border-top: 1px solid #2b2f3a;
+}
+
+.scanner-table tr:hover {
+  background: #222733;
+}

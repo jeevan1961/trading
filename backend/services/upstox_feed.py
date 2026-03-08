@@ -6,19 +6,20 @@ import websockets
 from config import settings
 from database import get_db
 
+from services.candle_engine import process_tick_to_candle
+from services.order_flow import process_tick_order_flow
+from utils.instrument_loader import load_nse_instruments
+
+
 logger = logging.getLogger(__name__)
 
-# Active subscriptions
 subscriptions = set()
-
-# Latest tick cache
 latest_ticks = {}
 
 
 async def connect_upstox_feed(access_token: str):
     """
     Maintain persistent connection to Upstox market feed.
-    Auto reconnect if connection drops.
     """
 
     ws_url = settings.UPSTOX_WS
@@ -26,6 +27,7 @@ async def connect_upstox_feed(access_token: str):
     while True:
 
         try:
+
             logger.info("Connecting to Upstox WebSocket...")
 
             async with websockets.connect(
@@ -44,7 +46,9 @@ async def connect_upstox_feed(access_token: str):
                     message = await ws.recv()
 
                     try:
+
                         data = json.loads(message)
+
                         await process_tick(data)
 
                     except json.JSONDecodeError:
@@ -53,6 +57,7 @@ async def connect_upstox_feed(access_token: str):
         except Exception as e:
 
             logger.error(f"WebSocket disconnected: {e}")
+
             logger.info("Reconnecting in 3 seconds...")
 
             await asyncio.sleep(3)
@@ -60,42 +65,41 @@ async def connect_upstox_feed(access_token: str):
 
 async def subscribe_initial_instruments(ws):
     """
-    Subscribe to initial instruments.
+    Subscribe to top NSE instruments.
     """
 
-    instruments = [
-        "NSE_EQ|RELIANCE",
-        "NSE_EQ|TCS",
-        "NSE_EQ|INFY",
-        "NSE_EQ|HDFCBANK",
-        "NSE_EQ|ICICIBANK"
-    ]
+    instruments = await load_nse_instruments()
 
-    for instrument in instruments:
-        subscriptions.add(instrument)
+    if not instruments:
+        logger.error("No instruments loaded")
+        return
+
+    # limit subscription for performance
+    instruments = instruments[:200]
+
+    keys = [i["instrument_key"] for i in instruments]
 
     payload = {
         "guid": "market-feed",
         "method": "sub",
         "data": {
             "mode": "full",
-            "instrumentKeys": list(subscriptions)
+            "instrumentKeys": keys
         }
     }
 
     await ws.send(json.dumps(payload))
 
-    logger.info(f"Subscribed to {len(instruments)} instruments")
+    logger.info(f"Subscribed to {len(keys)} instruments")
 
 
 async def process_tick(message):
     """
-    Process incoming market data.
+    Process incoming market tick.
     """
 
     try:
 
-        # Upstox sends nested data
         data = message.get("data")
 
         if not data:
@@ -110,9 +114,16 @@ async def process_tick(message):
 
             latest_ticks[instrument] = tick
 
+            # process for candles
+            await process_tick_to_candle(tick)
+
+            # process order flow
+            process_tick_order_flow(tick)
+
             db = get_db()
 
             if db:
+
                 await db.ticks.insert_one({
                     "instrument_key": instrument,
                     "tick": tick
@@ -123,7 +134,7 @@ async def process_tick(message):
         logger.error(f"Tick processing error: {e}")
 
 
-def get_latest_tick(instrument_key: str):
+def get_latest_tick(instrument_key):
     """
     Return latest cached tick.
     """

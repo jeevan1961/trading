@@ -22,7 +22,7 @@ class Instrument(BaseModel):
     exchange: str
     segment: str
     instrument_type: str
-    
+
 # Pattern Detection Model
 class PatternDetection(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -33,7 +33,7 @@ class PatternDetection(BaseModel):
     direction: str  # bullish/bearish
     confidence: float
     description: str
-    
+
 # Market Structure Model
 class MarketStructure(BaseModel):
     instrument_key: str
@@ -43,7 +43,7 @@ class MarketStructure(BaseModel):
     lower_highs: List[dict] = []
     lower_lows: List[dict] = []
     last_updated: datetime
-    
+
 # Liquidity Pool Model
 class LiquidityPool(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))

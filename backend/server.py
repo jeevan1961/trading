@@ -31,6 +31,7 @@ db = client[os.environ['DB_NAME']]
 UPSTOX_API_KEY = os.environ.get('UPSTOX_API_KEY')
 UPSTOX_API_SECRET = os.environ.get('UPSTOX_API_SECRET')
 UPSTOX_REDIRECT_URI = os.environ.get('UPSTOX_REDIRECT_URI')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 SECRET_KEY = os.environ.get('SECRET_KEY', 'change-this-secret-key')
 
 # Create the main app
@@ -134,10 +135,16 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)):
             )
 
         if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to obtain access token")
+            logging.error(f"Upstox token exchange failed: {response.text}")
+            # Redirect to frontend with error
+            return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?error=token_exchange_failed")
 
         token_response = response.json()
         access_token = token_response.get("access_token")
+        
+        if not access_token:
+            logging.error("No access token in response")
+            return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?error=no_access_token")
 
         # Store session in MongoDB
         session_doc = {
@@ -154,16 +161,12 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)):
         # Create JWT token for frontend
         jwt_token = create_access_token({"sub": session_doc["id"], "upstox_token": access_token})
 
-        return {
-            "status": "success",
-            "jwt_token": jwt_token,
-            "upstox_token": access_token,
-            "expires_at": session_doc["token_expires_at"].isoformat()
-        }
+        # Redirect to frontend with JWT token
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={jwt_token}")
 
     except Exception as e:
         logging.error(f"OAuth callback error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?error={str(e)}")
 
 @api_router.post("/auth/simple-login")
 async def simple_login(username: str, password: str):

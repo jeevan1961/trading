@@ -12,7 +12,7 @@ import httpx
 import json
 import uuid
 from models import (
-    CandleData, Instrument, PatternDetection, 
+    CandleData, Instrument, PatternDetection,
     MarketStructure, LiquidityPool, UserSession,
     PaperTradingAccount
 )
@@ -53,21 +53,21 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}
         self.subscriptions: Dict[str, set] = {}
-    
+
     async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
         if user_id not in self.active_connections:
             self.active_connections[user_id] = []
         self.active_connections[user_id].append(websocket)
         logging.info(f"Client {user_id} connected")
-    
+
     def disconnect(self, websocket: WebSocket, user_id: str):
         if user_id in self.active_connections:
             self.active_connections[user_id].remove(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
         logging.info(f"Client {user_id} disconnected")
-    
+
     async def broadcast_market_data(self, data: dict, instrument_key: str):
         for user_id, connections in self.active_connections.items():
             for connection in connections:
@@ -117,7 +117,7 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)):
     """Handle OAuth callback and exchange code for access token."""
     try:
         token_url = "https://api.upstox.com/v2/login/authorization/token"
-        
+
         token_data = {
             "code": code,
             "client_id": UPSTOX_API_KEY,
@@ -125,20 +125,20 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)):
             "redirect_uri": UPSTOX_REDIRECT_URI,
             "grant_type": "authorization_code"
         }
-        
+
         async with httpx.AsyncClient() as http_client:
             response = await http_client.post(
                 token_url,
                 data=token_data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
-        
+
         if response.status_code != 200:
             raise HTTPException(status_code=400, detail="Failed to obtain access token")
-        
+
         token_response = response.json()
         access_token = token_response.get("access_token")
-        
+
         # Store session in MongoDB
         session_doc = {
             "id": str(uuid.uuid4()),
@@ -148,19 +148,19 @@ async def oauth_callback(code: str = Query(...), state: str = Query(...)):
             "state": state,
             "created_at": datetime.utcnow()
         }
-        
+
         await db.user_sessions.insert_one(session_doc)
-        
+
         # Create JWT token for frontend
         jwt_token = create_access_token({"sub": session_doc["id"], "upstox_token": access_token})
-        
+
         return {
             "status": "success",
             "jwt_token": jwt_token,
             "upstox_token": access_token,
             "expires_at": session_doc["token_expires_at"].isoformat()
         }
-        
+
     except Exception as e:
         logging.error(f"OAuth callback error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -183,7 +183,7 @@ async def get_instruments():
     cached = await db.instruments.find({}).to_list(500)
     if cached:
         return {"status": "success", "instruments": cached}
-    
+
     # Return hardcoded top 10 for now
     instruments = [
         {"symbol": symbol, "exchange": "NSE", "instrument_key": f"NSE_EQ|{symbol}"}
@@ -219,13 +219,13 @@ async def get_historical_candles(
             "instrument_key": instrument_key,
             "interval": interval
         }, {"_id": 0}).sort("timestamp", -1).limit(500).to_list(500)
-        
+
         if cached_candles:
             # Convert ISO timestamps back to datetime strings
             for candle in cached_candles:
                 if isinstance(candle.get("timestamp"), str):
                     pass  # Already ISO format
-                    
+
             return {
                 "status": "success",
                 "instrument_key": instrument_key,
@@ -233,10 +233,10 @@ async def get_historical_candles(
                 "candles": cached_candles,
                 "source": "cache"
             }
-        
+
         # Generate mock data for demo (replace with Upstox API call)
         mock_candles = generate_mock_candles(100)
-        
+
         # Store in cache (convert datetime to ISO format for MongoDB)
         for candle in mock_candles:
             candle_copy = candle.copy()
@@ -245,7 +245,7 @@ async def get_historical_candles(
             if isinstance(candle_copy.get("timestamp"), datetime):
                 candle_copy["timestamp"] = candle_copy["timestamp"].isoformat()
             await db.candles.insert_one(candle_copy)
-        
+
         return {
             "status": "success",
             "instrument_key": instrument_key,
@@ -253,7 +253,7 @@ async def get_historical_candles(
             "candles": mock_candles,
             "source": "generated"
         }
-        
+
     except Exception as e:
         logging.error(f"Error fetching candles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -267,23 +267,23 @@ async def get_intraday_candles(
     try:
         # Get today's candles
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+
         candles = await db.candles.find({
             "instrument_key": instrument_key,
             "interval": interval,
             "timestamp": {"$gte": today_start.isoformat()}
         }, {"_id": 0}).sort("timestamp", 1).to_list(500)
-        
+
         if not candles:
             # Generate mock intraday data
             candles = generate_mock_candles(50)
-        
+
         return {
             "status": "success",
             "instrument_key": instrument_key,
             "candles": candles
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -301,16 +301,16 @@ async def analyze_price_action(
             "instrument_key": instrument_key,
             "interval": interval
         }, {"_id": 0}).sort("timestamp", -1).limit(200).to_list(200)
-        
+
         if len(candles) < 20:
             raise HTTPException(status_code=400, detail="Insufficient data for analysis")
-        
+
         # Reverse to chronological order
         candles.reverse()
-        
+
         # Perform analysis
         analysis = analyzer.analyze_candles(candles)
-        
+
         # Store patterns in database
         if analysis.get("liquidity_traps"):
             for trap in analysis["liquidity_traps"]:
@@ -323,13 +323,13 @@ async def analyze_price_action(
                     "confidence": trap.get("confidence", "medium")
                 }
                 await db.patterns.insert_one(pattern_doc)
-        
+
         return {
             "status": "success",
             "instrument_key": instrument_key,
             "analysis": analysis
         }
-        
+
     except Exception as e:
         logging.error(f"Analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -340,13 +340,13 @@ async def get_market_structure(instrument_key: str):
     candles = await db.candles.find({
         "instrument_key": instrument_key
     }, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
-    
+
     if len(candles) < 20:
         return {"error": "Insufficient data"}
-    
+
     candles.reverse()
     structure = analyzer.detect_market_structure(candles)
-    
+
     return {
         "status": "success",
         "instrument_key": instrument_key,
@@ -359,10 +359,10 @@ async def get_liquidity_zones(instrument_key: str):
     candles = await db.candles.find({
         "instrument_key": instrument_key
     }, {"_id": 0}).sort("timestamp", -1).limit(150).to_list(150)
-    
+
     candles.reverse()
     pools = analyzer.detect_liquidity_pools(candles)
-    
+
     return {
         "status": "success",
         "instrument_key": instrument_key,
@@ -381,7 +381,7 @@ async def create_paper_account(user_id: str, initial_balance: float = 100000.0):
         "orders": [],
         "created_at": datetime.utcnow()
     }
-    
+
     result = await db.paper_accounts.insert_one(account_doc)
     return {
         "status": "success",
@@ -395,7 +395,7 @@ async def get_paper_account(user_id: str):
     account = await db.paper_accounts.find_one({"user_id": user_id})
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    
+
     account["_id"] = str(account["_id"])
     return {"status": "success", "account": account}
 
@@ -411,7 +411,7 @@ async def place_paper_order(
     account = await db.paper_accounts.find_one({"user_id": user_id})
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    
+
     order = {
         "id": str(uuid.uuid4()),
         "instrument_key": instrument_key,
@@ -421,13 +421,13 @@ async def place_paper_order(
         "status": "executed",
         "timestamp": datetime.utcnow()
     }
-    
+
     # Update account
     if order_type == "buy":
         cost = price * quantity
         if account["balance"] < cost:
             raise HTTPException(status_code=400, detail="Insufficient balance")
-        
+
         account["balance"] -= cost
         account["positions"].append({
             "instrument_key": instrument_key,
@@ -435,14 +435,14 @@ async def place_paper_order(
             "avg_price": price,
             "current_value": price * quantity
         })
-    
+
     account["orders"].append(order)
-    
+
     await db.paper_accounts.update_one(
         {"user_id": user_id},
         {"$set": account}
     )
-    
+
     return {"status": "success", "order": order, "balance": account["balance"]}
 
 # ==================== WEBSOCKET ENDPOINT ====================
@@ -454,36 +454,36 @@ async def websocket_endpoint(
 ):
     """WebSocket endpoint for real-time market data."""
     await manager.connect(websocket, user_id)
-    
+
     try:
         while True:
             data = await websocket.receive_json()
-            
+
             if data.get("type") == "subscribe":
                 instrument_keys = data.get("instrument_keys", [])
-                
+
                 # Send confirmation
                 await websocket.send_json({
                     "type": "subscription_confirmed",
                     "instruments": instrument_keys
                 })
-                
+
                 # Send initial data
                 for key in instrument_keys:
                     candles = await db.candles.find({
                         "instrument_key": key
                     }).sort("timestamp", -1).limit(1).to_list(1)
-                    
+
                     if candles:
                         await websocket.send_json({
                             "type": "market_update",
                             "instrument_key": key,
                             "data": candles[0]
                         })
-            
+
             elif data.get("type") == "unsubscribe":
                 pass
-    
+
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
     except Exception as e:
@@ -497,12 +497,12 @@ def generate_mock_candles(count: int) -> List[dict]:
     candles = []
     base_price = 150.0
     base_time = datetime.utcnow() - timedelta(minutes=count)
-    
+
     for i in range(count):
         # Random walk
         change = (hash(str(i)) % 100 - 50) / 100
         base_price += change
-        
+
         candle = {
             "timestamp": (base_time + timedelta(minutes=i)).isoformat(),
             "open": base_price,
@@ -512,7 +512,7 @@ def generate_mock_candles(count: int) -> List[dict]:
             "volume": 10000 + (hash(str(i)) % 50000)
         }
         candles.append(candle)
-    
+
     return candles
 
 # ==================== MAIN APP SETUP ====================
@@ -541,7 +541,7 @@ async def startup_event():
     """Initialize on startup."""
     logger.info("Starting Institutional Trading Dashboard API")
     logger.info(f"Upstox API Key configured: {bool(UPSTOX_API_KEY)}")
-    
+
     # Create indexes
     await db.candles.create_index([("instrument_key", 1), ("timestamp", -1)])
     await db.patterns.create_index([("instrument_key", 1), ("timestamp", -1)])

@@ -11,7 +11,7 @@ analyzer = PriceActionAnalyzer()
 
 async def calculate_score(instrument_key, candles, analysis, order_flow):
     """
-    Score trading opportunities.
+    Score trading opportunities using price action + order flow.
     """
 
     score = 0
@@ -75,7 +75,7 @@ async def calculate_score(instrument_key, candles, analysis, order_flow):
 
 async def run_liquidity_radar():
     """
-    Scan all instruments and rank best setups.
+    Scan all instruments and rank best trading setups.
     """
 
     try:
@@ -95,9 +95,10 @@ async def run_liquidity_radar():
                 {"instrument_key": instrument}
             ).sort("timestamp", -1).limit(200).to_list(200)
 
-            if len(candles) < 20:
+            if not candles or len(candles) < 20:
                 continue
 
+            # analyzer expects chronological order
             candles.reverse()
 
             analysis = analyzer.analyze_candles(candles)
@@ -116,6 +117,7 @@ async def run_liquidity_radar():
 
         results.sort(key=lambda x: x["score"], reverse=True)
 
+        # return top opportunities
         return results[:10]
 
     except Exception as e:
